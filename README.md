@@ -8,7 +8,7 @@
 4. [Быстрый запуск (Docker Compose)](#быстрый-запуск-docker-compose)
 5. [Пошаговый сценарий демонстрации и тестирования (Curl)](#пошаговый-сценарий-демонстрации-и-тестирования-curl)
 6. [Запуск тестов и линтинга](#запуск-тестов-и-линтинга)
-7. [CI/CD пайплайн (GitHub Actions / GitLab CI) и деплой](#cicd-пайплайн-github-actions--gitlab-ci-и-деплой)
+7. [CI/CD пайплайн (GitHub Actions) и деплой](#cicd-пайплайн-github-actions-и-деплой)
 
 ---
 
@@ -26,7 +26,7 @@
 - **Синхронный RPC**: gRPC (HTTP/2, Protobuf v3)
 - **Аутентификация**: JWT (Access Token HS256 + Refresh Token с ротацией в БД и blacklist в Redis)
 - **Паттерны распределенных систем**: Saga (Оркестрация создания проекта с компенсацией), Transaction Outbox, Transaction Inbox (идемпотентный консьюмер)
-- **Контейнеризация и CI/CD**: Docker, Docker Compose, GitLab CI/CD
+- **Контейнеризация и CI/CD**: Docker, Docker Compose, GitHub Actions
 
 ---
 
@@ -99,9 +99,9 @@
 | **9** | Шина данных RabbitMQ | Topic Exchange `tracker.events`, очередь `notification.queue`, маршрутизация событий `task.*`, `project.*`. |
 | **10** | Синхронный gRPC | Контракт `proto/auth.proto`. Межсервисные вызовы `CheckUserExists` (валидация исполнителя задачи) и `CheckProjectQuota` (проверка квоты для Saga). |
 | **11** | Авторизация и аутентификация через JWT | `auth-service`: выпуск пар Access (JWT) + Refresh токенов, ротация, эндпоинты `/register`, `/login`, `/refresh`, `/logout`, `/me`. Bearer middleware в сервисах. |
-| **12** | Юнит и интеграционные тесты | Pytest тесты (13 тестов: хэширование, JWT, Saga с компенсацией, Transaction Inbox, REST API сценарии). |
-| **13** | GitLab CI пайплайн (тесты) | `.gitlab-ci.yml`: этапы `lint` (Ruff) и `test` (Pytest). |
-| **14** | Сборка и деплой приложения | `.gitlab-ci.yml`: этапы `build` (Docker build/push) и `deploy` (SSH / docker compose deploy на сервер). |
+| **12** | Юнит и интеграционные тесты | Pytest тесты (20 тестов: хэширование, JWT, Saga с компенсацией, Transaction Inbox, REST API сценарии). |
+| **13** | CI пайплайн (тесты) | [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): этапы `lint` (Ruff) и `test` (Pytest). |
+| **14** | Сборка и деплой приложения | [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml): этап `deploy` (SSH + `rsync` + `docker compose` с [`docker-compose.prod.yml`](docker-compose.prod.yml) и Nginx-шлюзом на сервер). |
 
 ---
 
@@ -260,9 +260,9 @@ pytest -v
 
 ---
 
-## CI/CD пайплайн (GitHub Actions / GitLab CI) и деплой
+## CI/CD пайплайн (GitHub Actions) и деплой
 
-Файл [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) (и резервный [`.gitlab-ci.yml`](.gitlab-ci.yml)) содержит стадии:
+Файл [`.github/workflows/ci-cd.yml`](.github/workflows/ci-cd.yml) содержит стадии:
 1. **`lint`**: проверка качества кода утилитой Ruff.
 2. **`test`**: прогон всех unit и integration тестов (Pytest).
 3. **`deploy`**: деплой на сервер через SSH + `rsync` + `docker compose -p perfilov -f docker-compose.yml -f docker-compose.prod.yml up -d --build` (с Nginx-шлюзом `nginx/gateway.conf` за Nginx Proxy Manager).
