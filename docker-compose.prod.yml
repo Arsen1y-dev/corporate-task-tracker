@@ -1,0 +1,47 @@
+services:
+  postgres:
+    ports: !reset []
+
+  redis:
+    ports: !reset []
+
+  rabbitmq:
+    ports: !reset []
+
+  auth-service:
+    ports: !reset []
+    environment:
+      ROOT_PATH: /auth
+
+  tracker-service:
+    ports: !reset []
+    environment:
+      ROOT_PATH: /tracker
+
+  notification-service:
+    ports: !reset []
+    environment:
+      ROOT_PATH: /notifications
+
+  gateway:
+    image: nginx:alpine
+    restart: unless-stopped
+    volumes:
+      - ./nginx/gateway.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      auth-service:
+        condition: service_healthy
+      tracker-service:
+        condition: service_healthy
+      notification-service:
+        condition: service_healthy
+    networks:
+      default:
+      proxy:
+        aliases:
+          - perfilov-gateway
+
+networks:
+  proxy:
+    external: true
+    name: nginx-proxy

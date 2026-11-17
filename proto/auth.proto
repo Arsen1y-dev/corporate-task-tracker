@@ -1,0 +1,31 @@
+syntax = "proto3";
+
+package auth;
+
+service AuthService {
+  rpc CheckUserExists (UserCheckRequest) returns (UserCheckResponse);
+  rpc CheckProjectQuota (QuotaCheckRequest) returns (QuotaCheckResponse);
+}
+
+message UserCheckRequest {
+  int32 user_id = 1;
+}
+
+message UserCheckResponse {
+  bool exists = 1;
+  int32 user_id = 2;
+  string username = 3;
+  string email = 4;
+  string role = 5;
+}
+
+message QuotaCheckRequest {
+  int32 user_id = 1;
+  int32 current_project_count = 2;
+}
+
+message QuotaCheckResponse {
+  bool allowed = 1;
+  int32 max_projects = 2;
+  string reason = 3;
+}

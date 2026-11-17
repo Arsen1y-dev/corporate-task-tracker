@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+exclude = [
+    ".venv",
+    "proto/generated",
+    "services/auth-service/src/proto",
+    "services/tracker-service/src/proto",
+]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "W"]
+ignore = ["E501"]

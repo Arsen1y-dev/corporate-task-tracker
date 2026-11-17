@@ -1,0 +1,75 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install --no-cache-dir ruff
+      - run: ruff check .
+
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: |
+          pip install --no-cache-dir uv
+          uv pip install --system pytest pytest-asyncio httpx fastapi pydantic pydantic-settings sqlalchemy aiosqlite asyncpg redis aio-pika grpcio grpcio-tools protobuf pyjwt cryptography bcrypt greenlet email-validator
+          chmod +x ./scripts/generate_proto.sh
+          PYTHON=python ./scripts/generate_proto.sh
+      - run: pytest -v --tb=short
+
+  deploy:
+    needs: [lint, test]
+    if: github.ref == 'refs/heads/main' && (github.event_name == 'push' || github.event_name == 'workflow_dispatch')
+    runs-on: ubuntu-latest
+    env:
+      DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+      SSH_PRIVATE_KEY: ${{ secrets.SSH_PRIVATE_KEY }}
+      DEPLOY_PATH: ${{ secrets.DEPLOY_PATH || '/home/perfilov' }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Deploy via SSH and Docker Compose
+        run: |
+          if [ -z "$DEPLOY_HOST" ] || [ -z "$DEPLOY_USER" ] || [ -z "$SSH_PRIVATE_KEY" ]; then
+            echo "DEPLOY NOTICE: Set DEPLOY_HOST, DEPLOY_USER, and SSH_PRIVATE_KEY in GitHub Actions secrets to enable automatic deploy."
+            exit 0
+          fi
+
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf '%s\n' "$SSH_PRIVATE_KEY" | tr -d '\r' > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+
+          SSH_OPTS="-i ~/.ssh/deploy_key -o StrictHostKeyChecking=accept-new"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "mkdir -p $DEPLOY_PATH"
+          rsync -az --delete \
+            --exclude .git \
+            --exclude .venv \
+            --exclude .pytest_cache \
+            --exclude .ruff_cache \
+            --exclude '__pycache__' \
+            --exclude .env \
+            -e "ssh $SSH_OPTS" \
+            ./ "$DEPLOY_USER@$DEPLOY_HOST:$DEPLOY_PATH/"
+
+          ssh $SSH_OPTS "$DEPLOY_USER@$DEPLOY_HOST" "
+            cd $DEPLOY_PATH && \
+            chmod +x scripts/init-multiple-dbs.sh scripts/generate_proto.sh && \
+            docker compose -p perfilov -f docker-compose.yml -f docker-compose.prod.yml up -d --build --remove-orphans
+          "
